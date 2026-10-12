@@ -1,0 +1,9 @@
+# 학생 개인정보는 저장소에 올리지 않습니다
+sample/
+*.xlsx
+*.xlsm
+*.xls
+시험시간표_*.json
+~$*
+.DS_Store
+dist/

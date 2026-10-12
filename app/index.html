@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>시험 시간표</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- 외부 라이브러리 (인터넷 없이 동작하도록 함께 배포) -->
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="vendor/exceljs.min.js"></script>
+
+  <!-- 핵심 계산 (화면과 무관, tests/run_tests.js 로 검증) -->
+  <script src="js/core/parse.js"></script>
+  <script src="js/core/state.js"></script>
+  <script src="js/core/conflict.js"></script>
+  <script src="js/core/stats.js"></script>
+  <script src="js/core/autoplan.js"></script>
+  <script src="js/core/placement.js"></script>
+  <script src="js/export/excel.js"></script>
+
+  <!-- 화면: 단계마다 파일 하나 -->
+  <script src="js/ui/dom.js"></script>
+  <script src="js/ui/app.js"></script>
+  <script src="js/ui/step1_import.js"></script>
+  <script src="js/ui/step2_basics.js"></script>
+  <script src="js/ui/step3_rooms.js"></script>
+  <script src="js/ui/step4_subjects.js"></script>
+  <script src="js/ui/step5_eval.js"></script>
+  <script src="js/ui/step6_schedule.js"></script>
+  <script src="js/ui/step7_place.js"></script>
+  <script src="js/ui/step8_seats.js"></script>
+  <script src="js/export/preview.js"></script>
+  <script src="js/ui/step9_export.js"></script>
+  <script>TT.start();</script>
+</body>
+</html>
