@@ -191,6 +191,7 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
   eq('명렬표 인원 = 학생 수 × 교시 수', names, ix.active.length * pl.slots.length);
   const sw = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
   eq('학생별 시간표: 학생 1명당 1쪽', sw.rowBreaks.length + 1, ix.active.length);
+  const one0 = (id) => TT.buildWorkbook(st, ix, pl, [id], ExcelJS).worksheets[0];
   const texts = (w) => { const t = []; w.eachRow((row) => t.push(String(row.getCell(1).value ?? ''))); return t; }; // 병합 셀은 첫 칸만
   eq('학생별 시간표: 기본 안내 문구', texts(sw).filter((t) => t === TT.DEFAULT_NOTICE).length, ix.active.length);
   st.studentNotice = '★ 공통 안내\n★ 두 번째 줄';
@@ -200,6 +201,13 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
   const sw3 = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
   eq('학생별 시간표: 빈 안내 문구는 생략', texts(sw3).includes('■ 안내'), false);
   eq('학생별 시간표: 생략해도 1명당 1쪽', sw3.rowBreaks.length + 1, ix.active.length);
+  // 고사실 시간표 안내 문구
+  eq('고사실 시간표: 기본은 안내 문구 없음', texts(one0('rooms')).includes('■ 안내'), false);
+  st.roomNotice = '★ 고사실 안내\n★ 둘째 줄';
+  const rw = one0('rooms');
+  eq('고사실 시간표: 고사실마다 안내 문구', texts(rw).filter((t) => t === st.roomNotice).length, st.rooms.length);
+  eq('고사실 시간표: 안내 문구 넣어도 고사실 1개당 1쪽', rw.rowBreaks.length + 1, st.rooms.length);
+  st.roomNotice = '';
   // 골라서 인쇄: 교시·고사실 하나만 / 교시 전체 / 고사실 전체
   const one = (id, only) => TT.buildWorkbook(st, ix, pl, [id], ExcelJS, only).worksheets[0];
   const pages = (w) => w.rowBreaks.length + 1;

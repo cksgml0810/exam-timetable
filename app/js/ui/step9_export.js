@@ -12,7 +12,7 @@
   function previewSheet(state, idx, pl) {
     const key = pvSheet + '|' + JSON.stringify([state.meta, state.days, state.periods, state.rooms, state.schedule, state.evalSubjects,
       state.placement, state.splits, state.roomRoles, state.roomMode, state.clusterAt, state.waitMode, state.seatMode, state.seatSeed, state.seatCols,
-      state.special, state.excluded, state.convRoom, state.studentNotice]);
+      state.special, state.excluded, state.convRoom, state.studentNotice, state.roomNotice]);
     if (pvCache.key !== key) {
       const wb = TT.buildWorkbook(state, idx, pl, [pvSheet]);
       pvCache.key = key;
@@ -61,22 +61,30 @@
     }
   }
 
-  /** 학생별 시간표 아래에 들어갈 공통 안내 문구 */
-  function noticeCard(state) {
-    const save = (v) => up((s) => (s.studentNotice = v));
+  /** 공통 안내 문구 입력 (9·10단계에서 같이 씀)
+   *  key: state의 항목 이름, def: 기본 문구('' 이면 되돌리기 버튼 없음) */
+  TT.noticeCard = (state, { key, title, desc, def = '', placeholder }) => {
+    const save = (v) => up((s) => (s[key] = v));
     return h('div.card',
       h('div.card-head',
-        h('div', h('h3', '학생별 시간표 안내 문구'),
-          h('p.muted', '모든 학생의 시간표 아래에 똑같이 들어갑니다. 줄을 바꾸면 인쇄물에서도 줄이 바뀝니다. 비워 두면 안내 문구를 넣지 않습니다.')),
-        state.studentNotice !== TT.DEFAULT_NOTICE
-          ? h('button.btn.ghost', { onclick: () => save(TT.DEFAULT_NOTICE) }, '기본 문구로 되돌리기') : null),
+        h('div', h('h3', title),
+          h('p.muted', `${desc} 줄을 바꾸면 인쇄물에서도 줄이 바뀝니다. 비워 두면 안내 문구를 넣지 않습니다.`)),
+        def && state[key] !== def ? h('button.btn.ghost', { onclick: () => save(def) }, '기본 문구로 되돌리기') : null),
       h('textarea.notice-input', {
-        id: 'student-notice', rows: 5, placeholder: '예) ★ 시험 시작 5분 전까지 입실합니다.',
-        value: state.studentNotice ?? '',
+        id: 'notice-' + key, rows: 5, placeholder,
+        value: state[key] ?? '',
         onchange: (e) => save(e.target.value),
       }),
-      h('p.muted', '입력 칸 밖을 누르면 저장되고 아래 미리 보기([학생별시간표])에 반영됩니다.'));
-  }
+      h('p.muted', '입력 칸 밖을 누르면 저장되고 미리 보기에 반영됩니다.'));
+  };
+  TT.STUDENT_NOTICE = {
+    key: 'studentNotice', title: '학생별 시간표 안내 문구', desc: '모든 학생의 시간표 아래에 똑같이 들어갑니다.',
+    def: TT.DEFAULT_NOTICE, placeholder: '예) ★ 시험 시작 5분 전까지 입실합니다.',
+  };
+  TT.ROOM_NOTICE = {
+    key: 'roomNotice', title: '고사실 시간표 안내 문구', desc: '모든 고사실 시간표 아래에 똑같이 들어갑니다.',
+    placeholder: '예) ★ 시험 시작 10분 전 답안지 배부\n★ 감독교사는 시험 종료 후 답안지를 학번순으로 정리하여 제출',
+  };
 
   function render(state, idx) {
     const pl = TT.placeAll(state, idx);
@@ -100,7 +108,8 @@
           h('span.pick-name', s.name),
           h('span.pick-meta', s.desc)))),
         h('p.muted', '모든 시트는 A4 인쇄에 맞춰져 있고, 고사실·반·학생마다 페이지가 나뉩니다. 엑셀에서 열어 바로 인쇄하거나 수정할 수 있습니다.')),
-      chosen.includes('student') ? noticeCard(state) : null,
+      chosen.includes('rooms') ? TT.noticeCard(state, TT.ROOM_NOTICE) : null,
+      chosen.includes('student') ? TT.noticeCard(state, TT.STUDENT_NOTICE) : null,
       previewCard(state, idx, pl));
   }
 

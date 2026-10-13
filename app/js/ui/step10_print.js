@@ -90,6 +90,7 @@
         h('div.card-head', h('div', h('h3', '무엇을 인쇄할까요?'), h('p.muted', kind.desc))),
         kindChips, pick, actions,
         h('p.muted', '인쇄 창이 열리면 프린터를 고르고 [인쇄]를 누르세요. [PDF로 저장]을 고르면 파일로도 남길 수 있습니다. 한꺼번에 엑셀로 받으려면 9단계를 쓰세요.')),
+      kind.id === 'rooms' ? TT.noticeCard(state, TT.ROOM_NOTICE) : null,
       h('div.card', h('div.card-head', h('h3', '미리 보기'), room ? h('span.muted', kind.by === 'slot' ? `${slotTitle(sl)} · ${room.name}` : room.name) : null), preview));
   }
 

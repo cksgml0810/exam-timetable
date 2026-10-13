@@ -57,6 +57,7 @@
     seatMode: 'id', // 좌석: 'id' 학번순 | 'random' 무작위
     seatSeed: 1,
     studentNotice: TT.DEFAULT_NOTICE, // 학생별 시간표 아래 공통 안내 문구 (빈칸이면 넣지 않음)
+    roomNotice: '', // 고사실 시간표 아래 공통 안내 문구 (빈칸이면 넣지 않음)
   });
 
   TT.slotKey = (dayId, periodId) => dayId + '|' + periodId;
