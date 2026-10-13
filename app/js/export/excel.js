@@ -14,7 +14,7 @@
     ws.pageSetup = {
       paperSize: 9, orientation: landscape ? 'landscape' : 'portrait',
       fitToPage: true, fitToWidth: 1, fitToHeight: 0,
-      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+      margins: { left: 0.4, right: 0.4, top: 0.3, bottom: 0.3, header: 0.15, footer: 0.15 },
       horizontalCentered: true,
     };
     ws.properties.defaultRowHeight = 18;
@@ -42,8 +42,8 @@
   }
   const head = (ws, r, values, c0 = 1, style = {}) => values.forEach((v, i) => cell(ws, r, c0 + i, v, { bold: true, fill: C.head, ...style }));
 
-  /* 한 장에 꽉 차게: A4 인쇄 영역(여백 좌우 0.4in·위아래 0.5in)보다 조금 작게 — 가로 px, 세로 pt */
-  const PAGE = { portrait: { w: 700, h: 730 }, landscape: { w: 1020, h: 495 } };
+  /* 한 장에 꽉 차게: A4 인쇄 영역(위아래 여백 0.3in → 세로 798pt·가로 552pt)보다 조금 작게 — 가로 px, 세로 pt */
+  const PAGE = { portrait: { w: 700, h: 780 }, landscape: { w: 1020, h: 536 } };
   /** 열 너비(글자 단위)를 비율대로 나눠 인쇄 폭(px)을 채움. 엑셀 열 너비 1 ≈ 7px (+5px 여백) */
   const fitCols = (px, weights) => {
     const sum = weights.reduce((a, b) => a + b, 0);
@@ -80,12 +80,12 @@
   const spacer = (ws, r, h = 10) => (ws.getRow(r).height = h);
   const pageBreak = (ws, r) => ws.getRow(r).addPageBreak();
   /** 글 폭(px) 어림: 한글·한자 1em, 그 밖(숫자·영문·기호) 0.6em, 넉넉히 10% 더 (1pt = 1.333px) */
-  const textPx = (line, size) => [...line].reduce((w, ch) => w + (/[\u1100-\u11ff\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(ch) ? 1 : 0.6), 0) * size * 1.333 * 1.1;
+  const textPx = (line, size) => [...line].reduce((w, ch) => w + (/[\u1100-\u11ff\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(ch) ? 1 : 0.6), 0) * size * 1.333 * 1.15;
   /** 줄바꿈 + 칸 폭(px)에 따른 자동 줄바꿈까지 센 줄 수 */
   const countLines = (text, px, size) =>
     String(text).split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(textPx(line, size) / Math.max(20, px))), 0);
-  /** 여러 줄 글이 잘리지 않는 행 높이(pt) */
-  const linesHeight = (text, px, size) => Math.ceil(countLines(text, px, size) * size * 1.5 + 6); // 맑은 고딕 한 줄 ≈ 1.5배
+  /** 여러 줄 글이 잘리지 않는 행 높이(pt). 엑셀의 맑은 고딕은 줄 간격이 넓어 한 줄 ≈ 글자 크기 × 1.75, 줄글(안내 등)은 × 2로 넉넉히 */
+  const linesHeight = (text, px, size, k = 1.75) => Math.ceil(countLines(text, px, size) * size * k + 6);
   /** 공통 안내 문구: '■ 안내' + 문구(줄바꿈 유지), 잘리지 않게 높이를 넉넉히. 마지막 행 번호를 돌려줌 */
   function addNotice(ws, r, ncol, text, px, size = 11) {
     ws.mergeCells(r, 1, r, ncol);
@@ -94,7 +94,7 @@
     ws.mergeCells(r + 1, 1, r + 1, ncol);
     cell(ws, r + 1, 1, text, { align: 'left', size, border: false });
     ws.getCell(r + 1, 1).alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-    ws.getRow(r + 1).height = linesHeight(text, px, size);
+    ws.getRow(r + 1).height = linesHeight(text, px, size, 2) + 6;
     return r + 1;
   }
   const short = (s) => (s ? TT.shortName(s) : '');
@@ -419,8 +419,8 @@
       for (const [key, a] of exams) {
         const sl = pl.slots[slotOrder.get(key)];
         const p = ctx.period(sl.periodId);
-        const vals = [TT.dayLabel(state, sl.dayId), `${p.name}  ${p.time || ''}`, short(a.subject), `${a.roomName}  ·  ${a.seat}번`];
-        examMin = Math.max(examMin, listRow(vals, (i) => ({ bold: i >= 2, size: i === 0 ? 10.5 : 11 })));
+        const vals = [TT.dayLabel(state, sl.dayId, { short: true }), `${p.name}  ${p.time || ''}`, short(a.subject), `${a.roomName}  ·  ${a.seat}번`];
+        examMin = Math.max(examMin, listRow(vals, (i) => ({ bold: i >= 2, size: 11 })));
         examRows.push(r);
         r++;
       }
@@ -437,7 +437,7 @@
           return `${TT.dayLabel(state, sl.dayId, { short: true })} ${ctx.period(sl.periodId).name} → ${a.roomName}`;
         }).join('     ');
         full(r, text, { align: 'left', size: 11, fill: C.wait });
-        ws.getRow(r).height = Math.max(26, linesHeight(text, W, 11));
+        ws.getRow(r).height = Math.max(26, linesHeight(text, W, 11, 2));
         spacer(ws, r + 1, 9);
         r += 2;
       }
@@ -446,7 +446,7 @@
       if (notice) r = addNotice(ws, r, ncol, notice, W, 11);
       else r--;
       // 남는 공간은 일자별 시간표 → 응시 과목 순으로 키워서 한 장을 채움
-      tallest = Math.max(tallest, fitHeight(ws, r0, r, PAGE.portrait.h, [{ rows: dayRows, min: dayMin, max: Math.max(dayMin, 110) }, { rows: examRows, min: examMin, max: Math.max(examMin, 34) }]));
+      tallest = Math.max(tallest, fitHeight(ws, r0, r, PAGE.portrait.h, [{ rows: dayRows, min: dayMin, max: Math.max(dayMin, 150) }, { rows: examRows, min: examMin, max: Math.max(examMin, 44) }]));
       if (si < idx.active.length - 1) pageBreak(ws, r);
     });
     fitScale(ws, tallest, PAGE.portrait.h);

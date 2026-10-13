@@ -207,7 +207,7 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
     let start = 1;
     return ends.map((end) => { let h = 0; for (let r = start; r <= end; r++) h += w.getRow(r).height || 18; start = end + 1; return h; });
   };
-  for (const [id, orient, limit] of [['rooms', 'landscape', 495], ['seats', 'landscape', 495], ['student', 'portrait', 730]]) {
+  for (const [id, orient, limit] of [['rooms', 'landscape', 536], ['seats', 'landscape', 536], ['student', 'portrait', 780]]) {
     const w = one0(id);
     const scale = (w.pageSetup.fitToPage === false ? w.pageSetup.scale : 100) / 100;
     const hs = pageHeights(w).map((h) => h * scale);
