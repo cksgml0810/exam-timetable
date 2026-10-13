@@ -4,6 +4,7 @@
  *   1) 시험 분반 → 고사실: 수동 지정(state.placement) > 개설강의실의 반 교실 > 같은 이름의 고사실 > 빈 특별실 > 빈 교실
  *      빈 방이 없으면 정원이 남는 시험 고사실에 합반
  *   2) 편의반 학생(1단계 표시)은 그 교시 시험이 있으면 편의반 고사실로
+ *      학생마다 편의반 고사실 하나를 모든 교시에 똑같이 씀: 직접 지정(state.convRoom) > 자동(학번순으로 고르게)
  *   3) 그 교시 시험이 없는 학생(미응시) → 자습실: 시험에 쓰지 않는 방 중 '자습 사용' 방
  *      waitMode 'even' : 학번순으로 자습실들에 고르게
  *      waitMode 'own'  : 자기 반 교실이 비어 있으면 그대로, 나머지는 남는 자습실에
@@ -48,6 +49,28 @@
 
   /** 분반 표시: '1(2학년 1반)' → '1반', 그 외는 강의실명 그대로 */
   TT.sectionLabel = (sec) => (isNaN(sec.roomCls) ? sec.room : `${sec.roomCls}반`);
+
+  /** 편의반 학생 → 편의반 고사실 (모든 교시 공통)
+   *  자동: 학번순으로 편의반 고사실에 고르게(정원 안에서) 나눔. 직접 지정(state.convRoom)은 그 위에 덮어씀
+   *  (한 학생을 옮겨도 다른 학생의 자동 배치는 바뀌지 않음)
+   *  @returns Map 학번 → { roomId, manual } */
+  TT.convAssign = (state, idx) => {
+    const out = new Map();
+    const rooms = state.rooms.filter((r) => r.type === 'convenience');
+    if (!rooms.length) return out;
+    const special = state.special || {};
+    const manual = state.convRoom || {};
+    const count = new Map(rooms.map((r) => [r.id, 0]));
+    for (const id of idx.active.filter((s) => special[s.id]).map((s) => s.id).sort(byId)) {
+      // 자리가 남는 방 중 인원이 가장 적은 방(같으면 목록 앞쪽), 모두 차면 가장 덜 넘치는 방
+      const r = rooms.filter((x) => count.get(x.id) < x.cap).sort((a, b) => count.get(a.id) - count.get(b.id))[0]
+        || rooms.slice().sort((a, b) => (count.get(a.id) - a.cap) - (count.get(b.id) - b.cap))[0];
+      count.set(r.id, count.get(r.id) + 1);
+      const m = rooms.find((x) => x.id === manual[id]);
+      out.set(id, m ? { roomId: m.id, manual: true } : { roomId: r.id, manual: false });
+    }
+    return out;
+  };
 
   /** 한 교시 배치 */
   TT.placeSlot = (state, idx, key) => {
@@ -164,10 +187,10 @@
       else errors.push({ code: '응시미배치', text: `${TT.shortName(u.subject)} ${TT.sectionLabel(u.sec)} 분반(${u.members.length}명)을 넣을 고사실이 없습니다.` });
     }
 
-    // 편의반
+    // 편의반: 학생마다 정해진 편의반 고사실로
+    const conv = convStudents.length ? TT.convAssign(state, idx) : null;
     for (const s of convStudents) {
-      const r = convRooms.find((x) => use.get(x.id).students.length < x.cap) || convRooms[0];
-      const x = use.get(r.id);
+      const x = use.get(conv.get(s.id).roomId);
       x.kind = 'conv';
       x.students.push(s);
     }

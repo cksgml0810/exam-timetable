@@ -1,4 +1,5 @@
-/* 실제 데이터(sample/2026_2_2.xlsx)로 핵심 로직 검증:  node tests/run_tests.js */
+/* 실제 데이터(sample/2026_2_2.xlsx)로 핵심 로직 검증:  node tests/run_tests.js
+ * 다른 파일로 검증: SAMPLE=경로/파일.xlsx node tests/run_tests.js (행·학생 수 등 파일별 숫자는 기본 파일 기준) */
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('../app/vendor/xlsx.full.min.js');
@@ -14,8 +15,8 @@ const eq = (name, got, want) => {
   console.log(`${ok ? '✓' : '✗'} ${name}` + (ok ? '' : `  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`));
 };
 
-const SAMPLE = path.join(__dirname, '../sample/2026_2_2.xlsx');
-if (!fs.existsSync(SAMPLE)) { console.log('sample/2026_2_2.xlsx 없음 — 건너뜀'); process.exit(0); }
+const SAMPLE = process.env.SAMPLE || path.join(__dirname, '../sample/2026_2_2.xlsx');
+if (!fs.existsSync(SAMPLE)) { console.log(`${SAMPLE} 없음 — 건너뜀`); process.exit(0); }
 const parsed = TT.parseWorkbook(new Uint8Array(fs.readFileSync(SAMPLE)), XLSX);
 
 eq('행 수', parsed.rowCount, 4170);
@@ -148,8 +149,24 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
   state.rooms.push({ id: 'rc', name: '편의반', type: 'convenience', cls: null, cap: 10 });
   const pc = TT.placeAll(state, idx);
   eq('편의반 학생 → 편의반 고사실', pc.byStudent.get(sp)['d1|p1'].roomName, '편의반');
+  // 편의반 2개: 학번순으로 고르게 자동 배치 → 학생별로 옮기기 (모든 교시 공통)
+  const sps = idx.active.slice(0, 5).map((s) => s.id);
+  state.special = Object.fromEntries(sps.map((id) => [id, true]));
+  state.rooms.push({ id: 'rc2', name: '통합반', type: 'convenience', cls: null, cap: 10 });
+  const roomOf = (p, id) => [...new Set(p.slots.map((sl) => p.byStudent.get(id)[sl.key]).filter((a) => a.kind === 'conv').map((a) => a.roomId))];
+  const auto = TT.convAssign(state, idx);
+  eq('편의반 자동: 고르게 나눔', sps.map((id) => auto.get(id).roomId), ['rc', 'rc2', 'rc', 'rc2', 'rc']);
+  state.convRoom = { [sps[0]]: 'rc2' };
+  const moved = TT.placeAll(state, idx);
+  eq('편의반 직접 옮기기: 모든 교시 통합반', roomOf(moved, sps[0]), ['rc2']);
+  eq('편의반 직접 지정 표시', TT.convAssign(state, idx).get(sps[0]).manual, true);
+  eq('한 명 옮겨도 다른 학생은 그대로', sps.slice(1).map((id) => TT.convAssign(state, idx).get(id).roomId), ['rc2', 'rc', 'rc2', 'rc']);
+  eq('편의반 옮긴 뒤에도 전원 1곳', moved.slots.every((sl) => new Set(sl.rooms.flatMap((x) => x.students.map((q) => q.id))).size === idx.active.length), true);
+  state.convRoom = { [sps[0]]: 'deleted-room' };
+  eq('없어진 방 지정은 자동으로', TT.convAssign(state, idx).get(sps[0]).manual, false);
+  state.convRoom = {};
   state.special = {};
-  state.rooms = state.rooms.filter((r) => r.id !== 'rc');
+  state.rooms = state.rooms.filter((r) => r.id !== 'rc' && r.id !== 'rc2');
   state.roomMode = 'cluster';
   global.__placementState = state;
 }
@@ -174,6 +191,37 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
   eq('명렬표 인원 = 학생 수 × 교시 수', names, ix.active.length * pl.slots.length);
   const sw = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
   eq('학생별 시간표: 학생 1명당 1쪽', sw.rowBreaks.length + 1, ix.active.length);
+  const one0 = (id) => TT.buildWorkbook(st, ix, pl, [id], ExcelJS).worksheets[0];
+  const texts = (w) => { const t = []; w.eachRow((row) => t.push(String(row.getCell(1).value ?? ''))); return t; }; // 병합 셀은 첫 칸만
+  eq('학생별 시간표: 기본 안내 문구', texts(sw).filter((t) => t === TT.DEFAULT_NOTICE).length, ix.active.length);
+  st.studentNotice = '★ 공통 안내\n★ 두 번째 줄';
+  const sw2 = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
+  eq('학생별 시간표: 입력한 안내 문구', texts(sw2).filter((t) => t === st.studentNotice).length, ix.active.length);
+  st.studentNotice = '';
+  const sw3 = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
+  eq('학생별 시간표: 빈 안내 문구는 생략', texts(sw3).includes('■ 안내'), false);
+  eq('학생별 시간표: 생략해도 1명당 1쪽', sw3.rowBreaks.length + 1, ix.active.length);
+  // 고사실 시간표 안내 문구
+  eq('고사실 시간표: 기본은 안내 문구 없음', texts(one0('rooms')).includes('■ 안내'), false);
+  st.roomNotice = '★ 고사실 안내\n★ 둘째 줄';
+  const rw = one0('rooms');
+  eq('고사실 시간표: 고사실마다 안내 문구', texts(rw).filter((t) => t === st.roomNotice).length, st.rooms.length);
+  eq('고사실 시간표: 안내 문구 넣어도 고사실 1개당 1쪽', rw.rowBreaks.length + 1, st.rooms.length);
+  st.roomNotice = '';
+  // 골라서 인쇄: 교시·고사실 하나만 / 교시 전체 / 고사실 전체
+  const one = (id, only) => TT.buildWorkbook(st, ix, pl, [id], ExcelJS, only).worksheets[0];
+  const pages = (w) => w.rowBreaks.length + 1;
+  const sl0 = pl.slots[0];
+  const used = sl0.rooms.filter((x) => x.students.length);
+  const rm = used[0].room;
+  eq('골라서: 명렬표 1장', pages(one('roster', { slotKey: sl0.key, roomId: rm.id })), 1);
+  const oneBuf = await TT.buildWorkbook(st, ix, pl, ['roster'], ExcelJS, { slotKey: sl0.key, roomId: rm.id }).xlsx.writeBuffer();
+  const oneRows = XLSX.utils.sheet_to_json(XLSX.read(Buffer.from(oneBuf)).Sheets['명렬표'], { header: 1 });
+  eq('골라서: 명렬표 그 고사실 학생 수', oneRows.filter((r) => /^\d{5}$/.test(String(r[1]))).length, used[0].students.length);
+  eq('골라서: 교시 모든 고사실', pages(one('roster', { slotKey: sl0.key })), used.length);
+  eq('골라서: 고사실 모든 교시', pages(one('roster', { roomId: rm.id })), pl.slots.filter((s) => s.rooms.some((x) => x.room.id === rm.id && x.students.length)).length);
+  eq('골라서: 고사실 시간표 1장', pages(one('rooms', { roomId: rm.id })), 1);
+  eq('골라서: 좌석배치도 1장', pages(one('seats', { slotKey: sl0.key, roomId: sl0.rooms.find((x) => x.kind === 'exam').room.id })), 1);
   console.log(fails ? `\n실패 ${fails}건` : '\n모두 통과');
   process.exit(fails ? 1 : 0);
 })();

@@ -247,6 +247,8 @@ a.link { color: var(--accent-2); cursor: pointer; text-decoration: none; font-we
 .cap-bar i { display: block; height: 100%; background: var(--accent-2); }
 .over .cap-bar i { background: var(--err); }
 .alert.err { background: var(--err-soft); color: #991b1b; display: grid; gap: 2px; }
+.chip.err { background: var(--err-soft); border-color: #fca5a5; color: #7f1d1d; }
+.notice-input { width: 100%; box-sizing: border-box; font: inherit; line-height: 1.6; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
 .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .chip.on small { color: #dbeafe; }
 button.chip { cursor: pointer; }
@@ -315,8 +317,20 @@ table.xl td { padding: 1px 3px; white-space: pre-wrap; vertical-align: middle; o
   .grid-2 { grid-template-columns: 1fr; }
 }
 
+#print-root { display: none; }
 @media print {
   .sidebar, .topbar, .page-nav { display: none !important; }
   body { background: #fff; }
+  /* 골라서 인쇄: 인쇄용 쪽만 */
+  body.printing > :not(#print-root) { display: none !important; }
+  body.printing #print-root { display: block; }
+  #print-root .paper { width: auto; min-height: 0; padding: 0; box-shadow: none; break-after: page; }
+  #print-root .paper:last-child { break-after: auto; }
+  #print-root table.xl { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.print-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: end; }
+.print-pick .field select { width: 100%; min-width: 0; }
+.room-nav { display: flex; gap: 6px; align-items: center; }
+.room-nav select { flex: 1; }
+.print-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .palette-chips:empty { display: none; }

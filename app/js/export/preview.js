@@ -20,15 +20,22 @@
     return pages.length ? pages : [[1, Math.max(1, ws.rowCount)]];
   };
 
-  /** 한 페이지 → 종이 모양 요소 */
-  TT.renderSheetPage = (ws, [r0, r1]) => {
+  /** 한 페이지 → 종이 모양 요소
+   *  opts.print: 인쇄용 — A4(여백 10mm) 한 장에 가로·세로 모두 들어가게 축소 */
+  TT.renderSheetPage = (ws, [r0, r1], opts = {}) => {
     const ncol = ws.columnCount;
     const widths = Array.from({ length: ncol }, (_, i) => Math.round((ws.getColumn(i + 1).width || 9) * 7 + 5));
     const total = widths.reduce((a, b) => a + b, 0);
     const landscape = ws.pageSetup?.orientation === 'landscape';
     const paperW = landscape ? 1123 : 794;
     const inner = paperW - 60;
-    const zoom = Math.min(1.3, inner / total);
+    let zoom = Math.min(1.3, inner / total);
+    if (opts.print) {
+      const [pw, ph] = landscape ? [1047, 718] : [718, 1047]; // A4 - 여백 10mm (px)
+      let height = 0;
+      for (let r = r0; r <= r1; r++) height += Math.round((ws.getRow(r).height || 18) * 1.33);
+      zoom = Math.min(1.3, pw / total, ph / height);
+    }
 
     // 병합 정보
     const span = new Map(); // 'r,c' → {rs, cs}
@@ -66,5 +73,22 @@
     const table = h('table.xl', { style: { width: total + 'px', zoom } },
       h('colgroup', widths.map((w) => h('col', { style: { width: w + 'px' } }))), tbody);
     return h('div.paper' + (landscape ? '.landscape' : ''), table);
+  };
+
+  /** 시트의 모든 쪽을 바로 인쇄 (브라우저 인쇄 창) */
+  TT.preparePrint = (ws) => {
+    const landscape = ws.pageSetup?.orientation === 'landscape';
+    document.getElementById('print-root')?.remove();
+    const root = h('div#print-root', TT.sheetPages(ws).map((pg) => TT.renderSheetPage(ws, pg, { print: true })));
+    const style = h('style', `@page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: 10mm; }`);
+    document.body.append(style, root);
+    document.body.classList.add('printing');
+    return () => { root.remove(); style.remove(); document.body.classList.remove('printing'); };
+  };
+  TT.printSheet = (ws) => {
+    const cleanup = TT.preparePrint(ws);
+    const done = () => { cleanup(); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    window.print();
   };
 })(window);

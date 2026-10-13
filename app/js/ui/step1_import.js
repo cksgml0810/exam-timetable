@@ -72,7 +72,7 @@
       h('div.card',
         h('div.card-head', h('h3', '학생 명단'),
           h('input.search', { placeholder: '이름·학번·반 검색', oninput: (e) => { filter = e.target.value.trim(); applyFilter(); } })),
-        h('p.muted', '이번 고사를 아예 보지 않는 학생(전학·장기결석 등)은 [시험 제외], 별도 고사실에서 보는 학생은 [편의반]으로 표시하세요.'),
+        h('p.muted', '이번 고사를 아예 보지 않는 학생(전학·장기결석 등)은 [시험 제외], 별도 고사실에서 보는 학생은 [편의반]으로 표시하세요. 편의반 학생은 7단계에서 편의반 고사실별로 옮길 수 있습니다.'),
         h('div.table-scroll', h('table.tbl.sticky',
           h('thead', h('tr', h('th', '학번'), h('th', '반'), h('th', '번호'), h('th', '성명'), h('th', '수강 과목'), h('th', ''), h('th', ''))),
           tbody))));

@@ -59,6 +59,8 @@
       else actions.push(moveSel);
     } else if (x.kind === 'wait') {
       actions.push(h('span.muted', '또는 3단계에서 자습실을 추가하거나 다른 방의 [자습 사용]을 켜세요.'));
+    } else if (x.kind === 'conv') {
+      actions.push(h('span.muted', '또는 아래 [편의반 학생]에서 일부 학생을 다른 편의반으로 옮기세요.'));
     }
     return h('div.fix-box',
       h('div', h('strong', `${x.room.name} 정원 초과`), ` ${err.count}명 / 최대 ${err.cap}명 — ${over}명 초과`),
@@ -144,6 +146,51 @@
       sp ? h('button.btn.icon-btn', { title: '나누기 해제', onclick: () => setSplit(sl.key, u.sec.id, null, 0) }, '×') : null);
   }
 
+  const setConv = (id, roomId) => up((s) => {
+    s.convRoom = { ...(s.convRoom || {}) };
+    if (roomId) s.convRoom[id] = roomId; else delete s.convRoom[id];
+  });
+
+  /** 편의반 학생 → 편의반 고사실 (모든 교시 공통, 학생별로 옮기기) */
+  function convCard(state, idx, pl) {
+    const ids = idx.active.filter((s) => state.special[s.id]).map((s) => s.id);
+    if (!ids.length) return null;
+    const rooms = state.rooms.filter((r) => r.type === 'convenience');
+    const head = h('div', h('h3', `편의반 학생 (${ids.length}명)`),
+      h('p.muted', '1단계에서 [편의반]으로 표시한 학생입니다. 처음에는 편의반 고사실에 학번순으로 고르게 나누고, 여기서 학생마다 옮길 수 있습니다. 정한 방은 모든 교시에 똑같이 적용됩니다.'));
+    if (!rooms.length) {
+      return h('div.card', head,
+        h('div.alert.warn', '편의반 고사실이 없어 일반 고사실에 배치되어 있습니다. 3단계에서 종류를 [편의반]으로 한 고사실(예: 진로활동실, 통합반)을 추가하세요. ',
+          h('a.link', { onclick: () => TT.go(3) }, '3단계로')));
+    }
+    const conv = TT.convAssign(state, idx);
+    const count = new Map(rooms.map((r) => [r.id, 0]));
+    conv.forEach((a) => count.set(a.roomId, count.get(a.roomId) + 1));
+    const examSlots = (id) => pl.slots.filter((sl) => pl.byStudent.get(id)?.[sl.key]?.kind === 'conv').length;
+    const anyManual = ids.some((id) => conv.get(id)?.manual);
+    const rows = ids.map((id) => idx.studentById.get(id)).sort((a, b) => a.cls - b.cls || a.no - b.no).map((st) => {
+      const a = conv.get(st.id);
+      return h('tr',
+        h('td', st.id), h('td', st.cls + '반'), h('td', st.no), h('td', st.name),
+        h('td.num', examSlots(st.id)),
+        h('td', h('select', { onchange: (e) => setConv(st.id, e.target.value) },
+          rooms.map((r) => h('option', { value: r.id, selected: r.id === a.roomId }, `${r.name} (${count.get(r.id)}명 / 최대 ${r.cap}명)`)))),
+        h('td', a.manual
+          ? h('span.btn-row', h('span.badge.warn', '직접 지정'), h('button.btn.icon-btn', { title: '자동 배치로 되돌리기', onclick: () => setConv(st.id, null) }, '×'))
+          : h('span.muted', '자동')));
+    });
+    return h('div.card',
+      h('div.card-head', head,
+        anyManual ? h('button.btn.ghost', { onclick: () => up((s) => { s.convRoom = {}; }) }, '편의반 자동 배치로 되돌리기') : null),
+      h('div.chips', rooms.map((r) => {
+        const n = count.get(r.id);
+        return h('span.chip' + (n > r.cap ? '.err' : ''), `${r.name} ${n}명 / 최대 ${r.cap}명`);
+      })),
+      h('table.tbl',
+        h('thead', h('tr', h('th', '학번'), h('th', '반'), h('th', '번호'), h('th', '성명'), h('th.num', '응시 교시'), h('th', '편의반 고사실'), h('th', ''))),
+        h('tbody', rows)));
+  }
+
   function render(state, idx) {
     const pl = TT.placeAll(state, idx);
     if (!pl.slots.length) {
@@ -215,7 +262,7 @@
         h('td', splitCell(sl, u, splits[u.sec.id])),
         h('td', overrides[u.sec.id] || splits[u.sec.id] ? h('span.badge.warn', '직접 지정') : h('span.muted', '자동'))))));
 
-    return h('div.stack', settings, tabs,
+    return h('div.stack', settings, convCard(state, idx, pl), tabs,
       h('div.card', head, errors,
         h('p.muted.drag-hint', '직접 조정: 방 카드의 [자동 ▾]에서 시험실/자습실/사용 안 함을 정하거나, 시험실 카드를 다른 방 카드에 끌어다 놓아 바꾸세요.'),
         h('div.room-grid', sl.rooms.map((x) => roomCard(x, sl, roles))),

@@ -42,10 +42,21 @@
   }
   const head = (ws, r, values, c0 = 1) => values.forEach((v, i) => cell(ws, r, c0 + i, v, { bold: true, fill: C.head }));
   const pageBreak = (ws, r) => ws.getRow(r).addPageBreak();
+  /** 공통 안내 문구: '■ 안내' + 문구(줄바꿈 유지). 줄 수(긴 줄은 약 60자마다 접힘)에 맞춘 높이. 마지막 행 번호를 돌려줌 */
+  function addNotice(ws, r, ncol, text) {
+    const lines = text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 60)), 0);
+    ws.mergeCells(r, 1, r, ncol);
+    cell(ws, r, 1, '■ 안내', { bold: true, border: false, align: 'left', size: 11 });
+    ws.mergeCells(r + 1, 1, r + 1, ncol);
+    cell(ws, r + 1, 1, text, { align: 'left', size: 10.5, border: false });
+    ws.getRow(r + 1).height = Math.max(24, 17 * lines + 6);
+    return r + 1;
+  }
   const short = (s) => (s ? TT.shortName(s) : '');
 
   /* ---------- 컨텍스트 ---------- */
-  function context(state, idx, pl) {
+  /** only: { slotKey, roomId } — 고사실·교시별 시트를 그 교시/고사실만 만들기 (골라서 인쇄) */
+  function context(state, idx, pl, only = {}) {
     const m = state.meta;
     const examTitle = `${m.year}학년도 ${m.grade}학년 ${m.semester}학기 ${m.examName}`.replace(/\s+/g, ' ').trim();
     const period = (id) => state.periods.find((p) => p.id === id);
@@ -56,7 +67,8 @@
       if (x.kind === 'conv') return '편의반';
       return '';
     };
-    return { state, idx, pl, examTitle, period, slotTitle, usageText };
+    const pick = (sl, room) => (!only.slotKey || sl.key === only.slotKey) && (!only.roomId || room.id === only.roomId);
+    return { state, idx, pl, examTitle, period, slotTitle, usageText, only, pick };
   }
 
   /* ---------- 1. 전체 시간표 ---------- */
@@ -101,8 +113,10 @@
     const { state, pl } = ctx;
     const days = state.days.filter((d) => pl.slots.some((s) => s.dayId === d.id));
     setup(ws, { cols: [12, ...days.map(() => 20)] });
+    const rooms = state.rooms.filter((room) => !ctx.only.roomId || room.id === ctx.only.roomId);
+    const notice = String(state.roomNotice ?? '').trim(); // 9·10단계에서 입력, 빈칸이면 생략
     let r = 1;
-    state.rooms.forEach((room, ri) => {
+    rooms.forEach((room, ri) => {
       r = title(ws, r, `고사실 시간표 — ${room.name}`, days.length + 1, ctx.examTitle);
       head(ws, r, ['교시', ...days.map((d) => TT.dayLabel(state, d.id))]);
       r++;
@@ -118,7 +132,8 @@
         ws.getRow(r).height = 46;
         r++;
       }
-      if (ri < state.rooms.length - 1) { pageBreak(ws, r); r += 1; }
+      if (notice) r = addNotice(ws, r + 1, days.length + 1, notice) + 1;
+      if (ri < rooms.length - 1) { pageBreak(ws, r); r += 1; }
     });
   }
 
@@ -127,7 +142,7 @@
     const { idx, pl } = ctx;
     setup(ws, { cols: [8, 10, 12, 18, 12, 16] });
     let r = 1;
-    const blocks = pl.slots.flatMap((sl) => sl.rooms.filter((x) => x.students.length).map((x) => ({ sl, x })));
+    const blocks = pl.slots.flatMap((sl) => sl.rooms.filter((x) => x.students.length && ctx.pick(sl, x.room)).map((x) => ({ sl, x })));
     blocks.forEach(({ sl, x }, bi) => {
       const kind = x.kind === 'wait' ? '자습실' : x.kind === 'conv' ? '편의반' : '고사실';
       r = title(ws, r, `${kind} 명렬표 — ${x.room.name}`, 6, ctx.examTitle);
@@ -160,7 +175,7 @@
   /* ---------- 4. 좌석배치도 ---------- */
   function sheetSeats(ws, ctx) {
     const { state, idx, pl } = ctx;
-    const blocks = pl.slots.flatMap((sl) => sl.rooms.filter((x) => x.kind === 'exam' || x.kind === 'conv').map((x) => ({ sl, x })));
+    const blocks = pl.slots.flatMap((sl) => sl.rooms.filter((x) => (x.kind === 'exam' || x.kind === 'conv') && ctx.pick(sl, x.room)).map((x) => ({ sl, x })));
     const maxCols = Math.max(1, ...blocks.map(({ x }) => TT.seatLayout(state, x.students.length, x.room).cols));
     setup(ws, { landscape: false, cols: Array(maxCols).fill(maxCols > 6 ? 15 : 18) });
     let r = 1;
@@ -232,6 +247,7 @@
     const full = (r, text, style) => { ws.mergeCells(r, 1, r, ncol); return cell(ws, r, 1, text, style); };
     const periodSpan = (i) => [2 + i, i === periods.length - 1 ? ncol : 2 + i]; // 마지막 교시가 남는 열을 채움
     const slotOrder = new Map(pl.slots.map((s, i) => [s.key, i]));
+    const notice = String(state.studentNotice ?? '').trim();
 
     idx.active.forEach((st, si) => {
       const map = pl.byStudent.get(st.id);
@@ -312,7 +328,9 @@
         r += 2;
       }
 
-      full(r, '※ 시험 시작 10분 전까지 지정된 고사실의 좌석에 앉으세요. 자습 시간에는 지정된 자습실에서 자습합니다.', { border: false, align: 'left', size: 9.5, color: 'FF6B7280' });
+      // 공통 안내 문구 (9단계에서 입력, 빈칸이면 생략)
+      if (notice) r = addNotice(ws, r, ncol, notice);
+      else r--;
       if (si < idx.active.length - 1) pageBreak(ws, r);
     });
   }
@@ -367,13 +385,14 @@
     { id: 'errors', name: '배치확인', desc: '정원 초과·미배치 등 확인 사항', build: sheetErrors },
   ];
 
-  /** @returns ExcelJS.Workbook */
-  TT.buildWorkbook = (state, idx, pl, sheetIds, ExcelJS) => {
+  /** @param only { slotKey, roomId } 고사실·교시별 시트를 일부만 (생략하면 전체)
+   *  @returns ExcelJS.Workbook */
+  TT.buildWorkbook = (state, idx, pl, sheetIds, ExcelJS, only) => {
     ExcelJS = ExcelJS || root.ExcelJS;
     const wb = new ExcelJS.Workbook();
     wb.creator = '시험 시간표';
     wb.created = new Date();
-    const ctx = context(state, idx, pl);
+    const ctx = context(state, idx, pl, only);
     for (const sh of TT.EXCEL_SHEETS) {
       if (sheetIds && !sheetIds.includes(sh.id)) continue;
       sh.build(wb.addWorksheet(sh.name), ctx);
