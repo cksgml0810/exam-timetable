@@ -201,6 +201,23 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
   const sw3 = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
   eq('학생별 시간표: 빈 안내 문구는 생략', texts(sw3).includes('■ 안내'), false);
   eq('학생별 시간표: 생략해도 1명당 1쪽', sw3.rowBreaks.length + 1, ix.active.length);
+  // 한 장 꽉 차게: 가로/세로 방향, 장마다 높이(배율 적용)가 A4 인쇄 영역 안, 너무 비지도 않게
+  const pageHeights = (w) => {
+    const ends = [...w.rowBreaks.map((b) => b.id), w.rowCount];
+    let start = 1;
+    return ends.map((end) => { let h = 0; for (let r = start; r <= end; r++) h += w.getRow(r).height || 18; start = end + 1; return h; });
+  };
+  for (const [id, orient, limit] of [['rooms', 'landscape', 536], ['seats', 'landscape', 536], ['student', 'portrait', 780]]) {
+    const w = one0(id);
+    const scale = (w.pageSetup.fitToPage === false ? w.pageSetup.scale : 100) / 100;
+    const hs = pageHeights(w).map((h) => h * scale);
+    eq(`${w.name}: ${orient === 'landscape' ? '가로' : '세로'} 인쇄`, w.pageSetup.orientation, orient);
+    eq(`${w.name}: 장마다 A4 한 장 안`, hs.every((h) => h <= limit + 1), true);
+    eq(`${w.name}: 장마다 85% 이상 채움`, hs.every((h) => h >= limit * 0.85), true);
+  }
+  const colsPx = (w) => w.columns.reduce((t, c) => t + (c.width || 9) * 7, 0);
+  eq('고사실 시간표·좌석배치도: 가로 폭이 인쇄 폭 안', [one0('rooms'), one0('seats')].every((w) => colsPx(w) <= 1045), true);
+  eq('학생별 시간표: 세로 폭이 인쇄 폭 안', colsPx(one0('student')) <= 717, true);
   // 고사실 시간표 안내 문구
   eq('고사실 시간표: 기본은 안내 문구 없음', texts(one0('rooms')).includes('■ 안내'), false);
   st.roomNotice = '★ 고사실 안내\n★ 둘째 줄';
