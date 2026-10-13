@@ -200,6 +200,20 @@ groups.forEach((g) => g.forEach((a) => g.forEach((b) => { if (a !== b && TT.over
   const sw3 = TT.buildWorkbook(st, ix, pl, ['student'], ExcelJS).worksheets[0];
   eq('학생별 시간표: 빈 안내 문구는 생략', texts(sw3).includes('■ 안내'), false);
   eq('학생별 시간표: 생략해도 1명당 1쪽', sw3.rowBreaks.length + 1, ix.active.length);
+  // 골라서 인쇄: 교시·고사실 하나만 / 교시 전체 / 고사실 전체
+  const one = (id, only) => TT.buildWorkbook(st, ix, pl, [id], ExcelJS, only).worksheets[0];
+  const pages = (w) => w.rowBreaks.length + 1;
+  const sl0 = pl.slots[0];
+  const used = sl0.rooms.filter((x) => x.students.length);
+  const rm = used[0].room;
+  eq('골라서: 명렬표 1장', pages(one('roster', { slotKey: sl0.key, roomId: rm.id })), 1);
+  const oneBuf = await TT.buildWorkbook(st, ix, pl, ['roster'], ExcelJS, { slotKey: sl0.key, roomId: rm.id }).xlsx.writeBuffer();
+  const oneRows = XLSX.utils.sheet_to_json(XLSX.read(Buffer.from(oneBuf)).Sheets['명렬표'], { header: 1 });
+  eq('골라서: 명렬표 그 고사실 학생 수', oneRows.filter((r) => /^\d{5}$/.test(String(r[1]))).length, used[0].students.length);
+  eq('골라서: 교시 모든 고사실', pages(one('roster', { slotKey: sl0.key })), used.length);
+  eq('골라서: 고사실 모든 교시', pages(one('roster', { roomId: rm.id })), pl.slots.filter((s) => s.rooms.some((x) => x.room.id === rm.id && x.students.length)).length);
+  eq('골라서: 고사실 시간표 1장', pages(one('rooms', { roomId: rm.id })), 1);
+  eq('골라서: 좌석배치도 1장', pages(one('seats', { slotKey: sl0.key, roomId: sl0.rooms.find((x) => x.kind === 'exam').room.id })), 1);
   console.log(fails ? `\n실패 ${fails}건` : '\n모두 통과');
   process.exit(fails ? 1 : 0);
 })();

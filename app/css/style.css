@@ -317,8 +317,20 @@ table.xl td { padding: 1px 3px; white-space: pre-wrap; vertical-align: middle; o
   .grid-2 { grid-template-columns: 1fr; }
 }
 
+#print-root { display: none; }
 @media print {
   .sidebar, .topbar, .page-nav { display: none !important; }
   body { background: #fff; }
+  /* 골라서 인쇄: 인쇄용 쪽만 */
+  body.printing > :not(#print-root) { display: none !important; }
+  body.printing #print-root { display: block; }
+  #print-root .paper { width: auto; min-height: 0; padding: 0; box-shadow: none; break-after: page; }
+  #print-root .paper:last-child { break-after: auto; }
+  #print-root table.xl { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.print-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: end; }
+.print-pick .field select { width: 100%; min-width: 0; }
+.room-nav { display: flex; gap: 6px; align-items: center; }
+.room-nav select { flex: 1; }
+.print-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .palette-chips:empty { display: none; }
