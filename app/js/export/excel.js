@@ -232,6 +232,9 @@
     const full = (r, text, style) => { ws.mergeCells(r, 1, r, ncol); return cell(ws, r, 1, text, style); };
     const periodSpan = (i) => [2 + i, i === periods.length - 1 ? ncol : 2 + i]; // 마지막 교시가 남는 열을 채움
     const slotOrder = new Map(pl.slots.map((s, i) => [s.key, i]));
+    const notice = String(state.studentNotice ?? '').trim();
+    // 줄 수(긴 줄은 약 60자마다 접힘)에 맞춘 높이
+    const noticeHeight = Math.max(24, 17 * notice.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 60)), 0) + 6);
 
     idx.active.forEach((st, si) => {
       const map = pl.byStudent.get(st.id);
@@ -312,7 +315,13 @@
         r += 2;
       }
 
-      full(r, '※ 시험 시작 10분 전까지 지정된 고사실의 좌석에 앉으세요. 자습 시간에는 지정된 자습실에서 자습합니다.', { border: false, align: 'left', size: 9.5, color: 'FF6B7280' });
+      // 공통 안내 문구 (9단계에서 입력, 빈칸이면 생략)
+      if (notice) {
+        full(r, '■ 안내', { bold: true, border: false, align: 'left', size: 11 });
+        r++;
+        full(r, notice, { align: 'left', size: 10.5, border: false });
+        ws.getRow(r).height = noticeHeight;
+      } else r--;
       if (si < idx.active.length - 1) pageBreak(ws, r);
     });
   }

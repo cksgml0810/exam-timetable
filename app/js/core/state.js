@@ -18,6 +18,13 @@
     study: '자습실',
   };
 
+  TT.DEFAULT_NOTICE = [
+    '★ 위 시간표에는 응시하는 과목의 고사실과 좌석 번호가 적혀 있습니다.',
+    '★ 해당 고사실을 꼭 확인하여 모든 소지품을 가지고 이동합니다.',
+    '★ 시험이 없는 교시에는 지정된 자습실에서 출석 확인 후 조용히 자습합니다.',
+    '★ 시험 시작 5분 전까지 입실합니다.',
+  ].join('\n');
+
   TT.defaultState = () => ({
     version: VERSION,
     step: 1,
@@ -25,6 +32,7 @@
     data: null, // { fileName, importedAt, rowCount, students, sections }
     excluded: {}, // 학번 → true : 시험 미응시(제외)
     special: {}, // 학번 → true : 편의반 대상
+    convRoom: {}, // 학번 → 편의반 고사실id : 7단계에서 직접 옮긴 편의반 학생 (없으면 자동)
     extraClasses: [], // 데이터에 없지만 추가한 반 번호
     days: [1, 2, 3, 4].map((n) => ({ id: 'd' + n, date: '' })),
     periods: [
@@ -48,6 +56,7 @@
     waitMode: 'even', // 자습 배치: 'even' 학번순 고르게 | 'own' 자기 반 교실 우선
     seatMode: 'id', // 좌석: 'id' 학번순 | 'random' 무작위
     seatSeed: 1,
+    studentNotice: TT.DEFAULT_NOTICE, // 학생별 시간표 아래 공통 안내 문구 (빈칸이면 넣지 않음)
   });
 
   TT.slotKey = (dayId, periodId) => dayId + '|' + periodId;
@@ -127,6 +136,7 @@
     state.meta.grade = state.meta.grade || parsed.meta.grade;
     state.excluded = {};
     state.special = {};
+    state.convRoom = {};
     state.evalSubjects = {};
     state.schedule = {};
     if (!state.rooms.length) state.rooms = TT.defaultRooms(state);
